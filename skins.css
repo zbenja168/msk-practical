@@ -193,3 +193,4 @@ html[data-skin='examplify'][data-skin-mode='dark'] body.exam .qtop .back { borde
   html[data-skin='examplify'] body.exam .examfoot { padding-left: 22px; justify-content: flex-end; }
   html[data-skin='examplify'] body.exam .examfoot-count { display: none; }
 }
+html[data-skin='examplify'] body.exam .ctxline { font-size: .97rem; line-height: 1.55; color: var(--exam-ink); }

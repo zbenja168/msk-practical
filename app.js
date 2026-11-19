@@ -49,7 +49,7 @@ function typedOk(typed, names) {
 }
 
 // ---------- state ----------
-let BANK = null, HY = [], BYID = new Map();
+let BANK = null, HY = [], BYID = new Map(), CTX = {};
 const cfg = Object.assign({ mode: 'hy', regions: [], type: 'mixed', rel: true, unv: true, count: 0, timer: 0 }, LS.get('mskp_cfg', {}));
 // v3: High Yield (all 100) became the default; move earlier saved settings over once
 if (!(cfg.v >= 3)) { cfg.mode = 'hy'; cfg.count = 0; cfg.v = 3; }
@@ -202,6 +202,10 @@ function ask() {
   $('cap').innerHTML = `Photo: ${esc(c.author)} &middot; <a href="${c.licenseUrl || '#'}" target="_blank" rel="noopener">${esc(c.license)}</a> &middot; <a href="${c.page}" target="_blank" rel="noopener">Wikimedia Commons</a> &middot; labels removed`;
   const unv = st.sure ? '' : ` <span class="unv" title="${esc(st.note || 'Label position or mapping was hard to confirm')}">unverified</span>`;
   const kw = KIND_WORD[s.kind] || 'structure';
+  // orientation line for photos whose region isn't obvious; skipped if it happens to contain the answer
+  let cx = CTX[st.img] || '';
+  if (cx) { const nc = ' ' + norm(cx) + ' '; if ([s.name, ...(s.alts || [])].some((n) => { const w = norm(n); return w.length >= 4 && nc.includes(' ' + w + ' '); })) cx = ''; }
+  $('ctx').innerHTML = cx ? '<b>Specimen:</b> ' + esc(cx) : ''; $('ctx').hidden = !cx;
   if (cur.type === 'pin') {
     $('qtype').innerHTML = 'Pin it' + unv;
     $('prompt').textContent = `Drop a pin on the ${s.name}.`;
@@ -340,8 +344,8 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json?v=4').then((r) => r.json()), fetch('data/hy.json?v=4').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
-  BANK = b; HY = hy || []; BYID = new Map(b.stations.map((s) => [s.id, s]));
+Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx]) => {
+  BANK = b; HY = hy || []; CTX = ctx || {}; BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
   renderSetup();
