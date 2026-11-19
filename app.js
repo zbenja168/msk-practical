@@ -312,7 +312,7 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json').then((r) => r.json()), fetch('data/hy.json').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
+Promise.all([fetch('data/bank.json?v=2').then((r) => r.json()), fetch('data/hy.json?v=2').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
   BANK = b; HY = hy || []; BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
