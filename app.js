@@ -211,22 +211,65 @@ function pinGrade(st, im, p) {
 function show(v) { ['vSetup', 'vQuiz', 'vDone'].forEach((x) => { $(x).hidden = x !== v; }); document.body.classList.toggle('exam', v !== 'vSetup'); window.scrollTo(0, 0); }
 // ---------- exam-skin chrome (hidden by CSS unless an exam skin is on) ----------
 let flags = new Set();
+// Review: vi is the index of an earlier station being looked at (read-only); null while on the live station.
+let vi = null, live = null;
 function renderPalette() {
   const pal = $('palette'); pal.innerHTML = '';
-  queue.forEach((_, i) => { const b = document.createElement('span'); b.className = 'palette-btn'; b.textContent = i + 1; pal.append(b); });
+  queue.forEach((_, i) => { const b = document.createElement('span'); b.className = 'palette-btn'; b.textContent = i + 1; b.onclick = () => goTo(i); pal.append(b); });
 }
 function syncChrome() {
-  const pal = $('palette').children;
+  const at = vi == null ? qi : vi, pal = $('palette').children;
   for (let i = 0; i < pal.length; i++) {
-    const l = log[i]; pal[i].className = 'palette-btn' + (i === qi ? ' current' : '') + (l ? (l.ok ? ' correct' : ' incorrect') : '') + (flags.has(i) ? ' flagged' : '');
+    const l = log[i]; pal[i].className = 'palette-btn' + (i === at ? ' current' : '') + (l ? (l.ok ? ' correct' : ' incorrect') : '') + (flags.has(i) ? ' flagged' : '') + (i <= qi ? ' reachable' : '');
   }
-  if (pal[qi]) pal[qi].scrollIntoView({ block: 'nearest' });
-  $('exNo').textContent = `Question ${qi + 1}`;
-  $('exFlag').classList.toggle('on', flags.has(qi)); $('exFlag').textContent = flags.has(qi) ? 'UNFLAG QUESTION' : 'FLAG QUESTION';
-  $('exCount').textContent = `STATION ${qi + 1} OF ${queue.length}`;
-  $('exTitle').textContent = cfg.mode === 'hy' ? 'MSK Practical — High Yield' : 'MSK Practical';
-  $('examfoot-next').textContent = !answered ? 'Submit' : qi + 1 >= queue.length ? 'Finish' : 'Next';
+  if (pal[at]) pal[at].scrollIntoView({ block: 'nearest' });
+  $('exNo').textContent = `Question ${at + 1}`;
+  $('exFlag').classList.toggle('on', flags.has(at)); $('exFlag').textContent = flags.has(at) ? 'UNFLAG QUESTION' : 'FLAG QUESTION';
+  $('exCount').textContent = vi == null ? `STATION ${qi + 1} OF ${queue.length}` : `REVIEWING STATION ${vi + 1} OF ${queue.length}`;
+  $('exTitle').textContent = cfg.mode === 'hy' ? 'MSK Practical \u2014 High Yield' : 'MSK Practical';
+  $('examfoot-next').textContent = vi != null ? (vi + 1 === qi ? 'Back to current' : 'Next') : !answered ? 'Submit' : qi + 1 >= queue.length ? 'Finish' : 'Next';
+  $('examfoot-prev').disabled = at === 0; $('btnPrev').hidden = at === 0;
+  $('btnBack').hidden = vi == null;
 }
+// ---------- review earlier stations (read-only) ----------
+function showSnap(i) {
+  const l = log[i], sn = l.snap, im = BANK.images[l.st.img];
+  $('photo').src = 'img/' + l.st.img + (im.orig ? '.orig.jpg' : '.jpg'); showOrig = !!im.orig;
+  const svg = $('ov'); svg.setAttribute('viewBox', `0 0 ${im.w} ${im.h}`); svg.innerHTML = sn.svg; svg.style.visibility = '';
+  $('fig').classList.remove('pinning');
+  $('cap').innerHTML = sn.cap; $('ctx').innerHTML = sn.ctx; $('ctx').hidden = !sn.ctx;
+  $('qtype').innerHTML = sn.qtype; $('prompt').textContent = sn.prompt;
+  $('ansForm').hidden = l.type === 'pin'; $('ans').value = sn.typed; $('ans').disabled = true;
+  $('fb').innerHTML = sn.fb;
+  $('btnSubmit').hidden = true; $('btnSkip').hidden = true; $('btnNext').hidden = true;
+  $('btnOrig').hidden = !im.orig; $('btnOrig').textContent = im.orig ? 'Hide labels' : 'Show labeled original';
+}
+function goTo(i) {
+  if (i < 0 || i > qi) return;
+  if (i === qi) return backToLive();
+  if (vi == null) { // leaving the live station: remember it and pause its timer
+    clearInterval(tid);
+    live = { typed: $('ans').value, pin, tleft };
+  }
+  vi = i; showSnap(i);
+  $('qtype').innerHTML += ' <span class="rev">Review</span>'; $('btnNext').hidden = false;
+  syncChrome();
+}
+function backToLive() {
+  if (vi == null) return;
+  vi = null;
+  if (answered) { showSnap(qi); $('btnNext').hidden = false; }
+  else {
+    renderLive();
+    if (live) {
+      if (cur.type === 'pin') { pin = live.pin; if (pin) { drawPin(pin, '#38bdf8'); $('btnSubmit').disabled = false; } }
+      else { $('ans').value = live.typed; setTimeout(() => $('ans').focus(), 30); }
+      resumeTimer(live.tleft);
+    }
+  }
+  live = null; syncChrome();
+}
+function stepPrev() { const at = vi == null ? qi : vi; if (at > 0) goTo(at - 1); }
 function start(only) {
   queue = buildQueue(only); qi = 0; score = 0; log = []; flags = new Set();
   if (!queue.length) return;
@@ -234,9 +277,15 @@ function start(only) {
   show('vQuiz'); ask();
 }
 function ask() {
-  cur = queue[qi]; answered = false; pin = null; showOrig = false;
-  const st = cur.st, im = BANK.images[st.img], s = BANK.structs[st.s];
+  cur = queue[qi]; answered = false; pin = null; vi = null; live = null;
+  const s = BANK.structs[cur.st.s];
   if (cur.type === 'rel') cur.rel = s.rel[cur.relIdx != null && s.rel[cur.relIdx] ? cur.relIdx : Math.floor(Math.random() * s.rel.length)];
+  renderLive();
+  startTimer();
+}
+function renderLive() {
+  showOrig = false;
+  const st = cur.st, im = BANK.images[st.img], s = BANK.structs[st.s];
   $('qn').textContent = qi + 1; $('qt').textContent = queue.length; $('qs').textContent = score;
   $('progBar').style.width = (100 * qi / queue.length) + '%';
   const photo = $('photo'); photo.src = 'img/' + st.img + '.jpg';
@@ -265,12 +314,12 @@ function ask() {
   $('btnSubmit').disabled = cur.type === 'pin';
   $('fb').innerHTML = '';
   syncChrome();
-  startTimer();
 }
-function startTimer() {
+function startTimer() { resumeTimer(cfg.timer); }
+function resumeTimer(left) {
   clearInterval(tid); const t = $('timer');
   if (!cfg.timer) { t.hidden = true; return; }
-  tleft = cfg.timer; t.hidden = false; tick();
+  tleft = left; t.hidden = false; tick();
   tid = setInterval(() => { tleft--; tick(); if (tleft <= 0) { clearInterval(tid); if (!answered) submit(true); } }, 1000);
 }
 function tick() { const t = $('timer'); t.textContent = `${Math.floor(tleft / 60)}:${String(Math.max(0, tleft) % 60).padStart(2, '0')}`; t.classList.toggle('low', tleft <= 10); }
@@ -332,10 +381,14 @@ function finish(ok, extra, timeout) {
   $('fb').innerHTML = `<div class="fb ${ok ? 'ok' : 'bad'}"><b class="v">${head}</b>${body}</div>`;
   $('btnSubmit').hidden = true; $('btnSkip').hidden = true; $('btnNext').hidden = false; $('btnOrig').hidden = !im.orig;
   if (im.orig) setOrig(true);
+  // snapshot for review (Previous / station rail)
+  log[log.length - 1].snap = { svg: svg.innerHTML, cap: $('cap').innerHTML, ctx: $('ctx').hidden ? '' : $('ctx').innerHTML, qtype: $('qtype').innerHTML,
+    prompt: $('prompt').textContent, typed: $('ans').value, fb: $('fb').innerHTML };
   $('btnNext').focus();
   syncChrome();
 }
 function next() {
+  if (vi != null) return vi + 1 === qi ? backToLive() : goTo(vi + 1);
   if (!answered) return;
   qi++; if (qi >= queue.length) return end();
   ask();
@@ -367,23 +420,25 @@ $('btnSubmit').onclick = () => submit();
 $('btnSkip').onclick = () => { if (!answered) finish(false, '', false); };
 $('btnNext').onclick = next;
 $('exFlag').onclick = () => { if (flags.has(qi)) flags.delete(qi); else flags.add(qi); syncChrome(); };
-$('examfoot-next').onclick = () => { if (answered) next(); else if (cur.type !== 'pin' || pin) submit(); };
+$('examfoot-next').onclick = () => { if (vi != null || answered) next(); else if (cur.type !== 'pin' || pin) submit(); };
+$('examfoot-prev').onclick = stepPrev; $('btnPrev').onclick = stepPrev; $('btnBack').onclick = backToLive;
 $('btnQuit').onclick = () => { if (log.length) end(); else { clearInterval(tid); show('vSetup'); } };
 $('btnAgain').onclick = () => { show('vSetup'); renderSetup(); };
 $('btnRetry').onclick = () => { const miss = log.filter((l) => !l.ok).map((l) => Object.assign({}, l.st, { qtype: l.type, qrel: l.relIdx >= 0 ? l.relIdx : null })); start(miss); };
 // The labeled original is the same size as the cleaned photo, so the arrow, pin and accepted area stay on top of it.
 function setOrig(on) {
   showOrig = on;
-  $('photo').src = 'img/' + cur.st.img + (on ? '.orig.jpg' : '.jpg');
+  $('photo').src = 'img/' + (vi == null ? cur.st : log[vi].st).img + (on ? '.orig.jpg' : '.jpg');
   $('btnOrig').textContent = on ? 'Hide labels' : 'Show labeled original';
 }
 $('btnOrig').onclick = () => setOrig(!showOrig);
 $('fig').addEventListener('click', (ev) => {
-  if (!cur || cur.type !== 'pin' || answered) return;
+  if (!cur || cur.type !== 'pin' || answered || vi != null) return;
   const p = imgPoint(ev); if (!p) return; pin = p; drawPin(p, '#38bdf8'); $('btnSubmit').disabled = false;
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' || $('vQuiz').hidden) return;
+  if (vi != null) { e.preventDefault(); next(); return; }
   if (e.target && e.target.id === 'ans') return;           // handled by the form
   if (e.target && e.target.tagName === 'BUTTON' && e.target.id !== 'btnNext') return;
   e.preventDefault();
