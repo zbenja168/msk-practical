@@ -1,0 +1,195 @@
+/* ============================================================================
+   EXAM SKIN — MSK Practical
+
+   The Examplify skin from the Secondary Active Transport QBanks (palette,
+   chrome and Examplify Dark taken from renal-qbank/skins.css), re-fitted to a
+   practical station: photo on the left, prompt and typed answer on the right.
+   Everything hangs off [data-skin] on <html>; the rules only bite while a
+   station or the results are showing (body.exam), so the setup page keeps the
+   tool's own look.
+
+   No third-party logos, wordmarks or icons: a resemblance of layout only.
+   ========================================================================== */
+
+/* Exam chrome is always in the DOM so app.js can keep it current. */
+.exam-itembar, .examfoot, .palette-rail, .exam-title { display: none; }
+
+/* ------------------------------------------------------------ skin picker --- */
+.skin-picker-label { display:block; font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700; margin-bottom:10px; }
+.skin-picker-row { display:flex; gap:8px; flex-wrap:wrap; }
+.skin-btn { background:var(--surface2); border:1px solid var(--border); color:var(--muted); border-radius:999px; padding:8px 14px; font-size:.86rem; font-weight:600; cursor:pointer; }
+.skin-btn.active { background:rgba(132,204,22,.14); border-color:var(--accent); color:var(--text); }
+.skin-btn:disabled { opacity:.45; cursor:not-allowed; }
+.skin-picker-note { font-size:.78rem; color:var(--muted); margin-top:10px; }
+.skin-picker-note a { color:var(--accent); }
+
+/* --------------------------------------------------------------- Examplify --- */
+html[data-skin='examplify'] {
+  --exam-navy: #1b4f72;
+  --exam-navy-deep: #16405c;
+  --exam-ink: #16232c;
+  --exam-field: #ffffff;
+  --exam-soft: #eff0f0;
+  --exam-line: #e2e5e7;
+  --exam-muted: #546e7a;
+  --exam-top: #16232c;
+  --exam-foot: #eef4f9;
+  --exam-foot-line: #dde6ee;
+}
+html[data-skin='examplify'][data-skin-mode='dark'] {
+  --exam-navy: #4a9eda;
+  --exam-navy-deep: #7db6e6;
+  --exam-ink: #e6e9ec;
+  --exam-field: #202427;
+  --exam-soft: #2b3034;
+  --exam-line: #383e43;
+  --exam-muted: #9aa5ae;
+  --exam-top: #15181a;
+  --exam-foot: #1a1d20;
+  --exam-foot-line: #000000;
+}
+
+html[data-skin='examplify'] body.exam {
+  background: var(--exam-field);
+  color: var(--exam-ink);
+  font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+  /* re-point the tool's own variables so every component follows */
+  --text: var(--exam-ink);
+  --muted: var(--exam-muted);
+  --surface: var(--exam-field);
+  --surface2: var(--exam-soft);
+  --border: var(--exam-line);
+  --bg: var(--exam-field);
+}
+
+/* top bar */
+html[data-skin='examplify'] body.exam .qtop {
+  position: sticky; top: 0; z-index: 16;
+  background: var(--exam-top); border-bottom: 0; padding: 12px 22px; gap: 16px;
+}
+html[data-skin='examplify'] body.exam .exam-title {
+  display: inline; color: #eceff1; text-transform: uppercase; letter-spacing: .06em; font-size: .85rem; font-weight: 600;
+}
+html[data-skin='examplify'] body.exam .prog,
+html[data-skin='examplify'] body.exam .qcount { display: none; }
+html[data-skin='examplify'] body.exam .qscore { margin-left: auto; color: #d6dade; font-size: .82rem; }
+html[data-skin='examplify'] body.exam .qscore b { color: #ffffff; }
+html[data-skin='examplify'] body.exam .timer { color: #d6dade; }
+html[data-skin='examplify'] body.exam .qtop .back { color: #d6dade; border-color: #3a4852; }
+html[data-skin='examplify'] body.exam .qtop .back:hover { color: #fff; border-color: #8fa3b0; }
+
+/* left rail of station numbers */
+html[data-skin='examplify'] body.exam .palette-rail {
+  position: fixed; top: 49px; bottom: 58px; left: 0; width: 84px; z-index: 15;
+  display: flex; flex-direction: column; background: var(--exam-field); border-right: 1px solid var(--exam-line); padding: 12px 0;
+}
+html[data-skin='examplify'] body.exam .palette-head { color: var(--exam-navy-deep); font-size: .72rem; font-weight: 700; padding: 0 0 6px 12px; }
+html[data-skin='examplify'] body.exam .palette-chev { height: 26px; flex: none; position: relative; }
+html[data-skin='examplify'] body.exam .palette-chev::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+  border-left: 2px solid #6b7b86; border-top: 2px solid #6b7b86;
+}
+html[data-skin='examplify'] body.exam .palette-chev[data-dir='up']::before { transform: translate(-50%, -30%) rotate(45deg); }
+html[data-skin='examplify'] body.exam .palette-chev[data-dir='down']::before { transform: translate(-50%, -70%) rotate(-135deg); }
+html[data-skin='examplify'] body.exam .palette {
+  flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px 0;
+  overflow-y: auto; scrollbar-width: thin;
+}
+html[data-skin='examplify'] body.exam .palette-btn {
+  position: relative; flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #7c8791; font-size: .95rem; font-weight: 500; border: 2px solid transparent;
+}
+html[data-skin='examplify'] body.exam .palette-btn.current { background: var(--exam-field); border-color: var(--exam-navy); color: var(--exam-ink); font-weight: 600; box-shadow: 0 0 0 3px rgba(27, 79, 114, .18); }
+html[data-skin='examplify'] body.exam .palette-btn.correct { background: #2e9e63; border-color: #2e9e63; color: #fff; font-weight: 600; }
+html[data-skin='examplify'] body.exam .palette-btn.incorrect { background: transparent; border-color: #d0453f; color: #d0453f; font-weight: 600; }
+html[data-skin='examplify'] body.exam .palette-btn.flagged::after {
+  content: ''; position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%;
+  background: #f5a623; border: 2px solid var(--exam-field);
+}
+
+/* item bar: "Question 3 v" and the flag pill */
+html[data-skin='examplify'] body.exam .exam-itembar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  max-width: 1180px; margin: 0 auto; padding: 18px 30px 6px 112px;
+}
+html[data-skin='examplify'] body.exam .exam-itemno {
+  font-size: .95rem; font-weight: 700; color: var(--exam-ink); display: inline-flex; align-items: center; gap: 10px;
+}
+html[data-skin='examplify'] body.exam .exam-itemno::after {
+  content: ''; width: 8px; height: 8px; border-right: 2px solid var(--exam-ink); border-bottom: 2px solid var(--exam-ink);
+  transform: translateY(-3px) rotate(45deg);
+}
+html[data-skin='examplify'] body.exam .exam-flag {
+  background: transparent; color: var(--exam-navy); border: 1.5px solid var(--exam-navy); border-radius: 999px;
+  padding: 8px 20px; font-size: .76rem; font-weight: 700; letter-spacing: .05em; cursor: pointer; font-family: inherit;
+}
+html[data-skin='examplify'] body.exam .exam-flag.on { background: #f5a623; border-color: #f5a623; color: #fff; }
+
+/* the station itself */
+html[data-skin='examplify'] body.exam .station { padding: 10px 30px 110px 112px; }
+html[data-skin='examplify'] body.exam .fig { border-radius: 4px; border: 1px solid var(--exam-line); }
+html[data-skin='examplify'] body.exam .cap,
+html[data-skin='examplify'] body.exam .cap a { color: var(--exam-muted); }
+html[data-skin='examplify'] body.exam .panel { background: transparent; border: 0; padding: 0 0 0 4px; }
+html[data-skin='examplify'] body.exam .qtype { color: var(--exam-navy-deep); }
+html[data-skin='examplify'] body.exam .prompt { font-size: .97rem; line-height: 1.55; font-weight: 400; color: var(--exam-ink); }
+html[data-skin='examplify'] body.exam #ansForm::before {
+  content: 'Answer'; display: block; font-size: .85rem; font-weight: 700; color: var(--exam-ink); margin-bottom: 8px;
+}
+html[data-skin='examplify'] body.exam .ans {
+  background: var(--exam-soft); border: 1px solid var(--exam-line); border-radius: 999px; padding: 14px 22px;
+  font-size: .95rem; color: var(--exam-ink);
+}
+html[data-skin='examplify'] body.exam .ans:focus { border-color: var(--exam-navy); background: var(--exam-field); }
+html[data-skin='examplify'] body.exam .btn { background: var(--exam-navy); color: #fff; border-radius: 999px; font-weight: 600; padding: 10px 20px; }
+html[data-skin='examplify'] body.exam .btn.ghost { background: transparent; color: var(--exam-ink); border: 1px solid #cfd9e2; }
+html[data-skin='examplify'] body.exam .btn.ghost:hover { border-color: var(--exam-navy); }
+/* the footer carries Submit / Next, so the panel's copies step aside */
+html[data-skin='examplify'] body.exam #btnSubmit,
+html[data-skin='examplify'] body.exam #btnNext { display: none; }
+html[data-skin='examplify'] body.exam .keys { display: none; }
+html[data-skin='examplify'] body.exam .fb { border-radius: 6px; color: var(--exam-ink); }
+html[data-skin='examplify'] body.exam .fb.ok { background: #e8f5ee; border-color: #8fd1ad; }
+html[data-skin='examplify'] body.exam .fb.bad { background: #fdecea; border-color: #e9a5a1; }
+
+/* footer bar */
+html[data-skin='examplify'] body.exam .examfoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  padding: 14px 22px 14px 200px; /* clears the Active Transport badge */
+  background: var(--exam-foot); border-top: 1px solid var(--exam-foot-line);
+}
+html[data-skin='examplify'] body.exam .examfoot-count { color: var(--exam-ink); font-size: .72rem; font-weight: 700; letter-spacing: .06em; }
+html[data-skin='examplify'] body.exam .examfoot-nav { display: flex; gap: 12px; }
+html[data-skin='examplify'] body.exam #examfoot-next {
+  min-width: 150px; padding: 12px 22px; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: .95rem; font-weight: 500;
+  background: var(--exam-navy); border: 1px solid var(--exam-navy); color: #fff;
+}
+
+/* results page */
+html[data-skin='examplify'] body.exam .big { color: var(--exam-ink); }
+html[data-skin='examplify'] body.exam .mcard { border-radius: 6px; }
+
+/* ----------------------------------------------------------- dark palette --- */
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .exam-flag.on { background: #d98b1f; border-color: #d98b1f; color: #16191b; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .palette-chev::before { border-left-color: #7f8a93; border-top-color: #7f8a93; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .palette-btn { color: #98a3ac; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .palette-btn.current { background: transparent; color: var(--exam-navy); box-shadow: 0 0 0 3px rgba(74, 158, 218, .22); }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .palette-btn.correct { background: #35a86c; border-color: #35a86c; color: #10161a; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .palette-btn.incorrect { border-color: #e2635c; color: #e2635c; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .btn { background: #2f6f9e; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .btn.ghost { background: #2c3237; border-color: #434a50; color: #dfe4e8; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam #examfoot-next { background: #2f6f9e; border-color: #2f6f9e; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .fb.ok { background: #1f3a2a; border-color: #4caf7d; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .fb.bad { background: #3d2426; border-color: #c96a6a; }
+html[data-skin='examplify'][data-skin-mode='dark'] body.exam .qtop .back { border-color: #3a4046; }
+
+/* ----------------------------------------------------------------- narrow --- */
+@media (max-width: 900px) {
+  html[data-skin='examplify'] body.exam .palette-rail { display: none; }
+  html[data-skin='examplify'] body.exam .station,
+  html[data-skin='examplify'] body.exam .exam-itembar { padding-left: 16px; padding-right: 16px; }
+  html[data-skin='examplify'] body.exam .examfoot { padding-left: 22px; justify-content: flex-end; }
+  html[data-skin='examplify'] body.exam .examfoot-count { display: none; }
+}

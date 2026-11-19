@@ -164,10 +164,29 @@ function pinGrade(st, im, p) {
 }
 
 // ---------- quiz flow ----------
-function show(v) { ['vSetup', 'vQuiz', 'vDone'].forEach((x) => { $(x).hidden = x !== v; }); window.scrollTo(0, 0); }
+function show(v) { ['vSetup', 'vQuiz', 'vDone'].forEach((x) => { $(x).hidden = x !== v; }); document.body.classList.toggle('exam', v !== 'vSetup'); window.scrollTo(0, 0); }
+// ---------- exam-skin chrome (hidden by CSS unless an exam skin is on) ----------
+let flags = new Set();
+function renderPalette() {
+  const pal = $('palette'); pal.innerHTML = '';
+  queue.forEach((_, i) => { const b = document.createElement('span'); b.className = 'palette-btn'; b.textContent = i + 1; pal.append(b); });
+}
+function syncChrome() {
+  const pal = $('palette').children;
+  for (let i = 0; i < pal.length; i++) {
+    const l = log[i]; pal[i].className = 'palette-btn' + (i === qi ? ' current' : '') + (l ? (l.ok ? ' correct' : ' incorrect') : '') + (flags.has(i) ? ' flagged' : '');
+  }
+  if (pal[qi]) pal[qi].scrollIntoView({ block: 'nearest' });
+  $('exNo').textContent = `Question ${qi + 1}`;
+  $('exFlag').classList.toggle('on', flags.has(qi)); $('exFlag').textContent = flags.has(qi) ? 'UNFLAG QUESTION' : 'FLAG QUESTION';
+  $('exCount').textContent = `STATION ${qi + 1} OF ${queue.length}`;
+  $('exTitle').textContent = cfg.mode === 'hy' ? 'MSK Practical — High Yield' : 'MSK Practical';
+  $('examfoot-next').textContent = !answered ? 'Submit' : qi + 1 >= queue.length ? 'Finish' : 'Next';
+}
 function start(only) {
-  queue = buildQueue(only); qi = 0; score = 0; log = [];
+  queue = buildQueue(only); qi = 0; score = 0; log = []; flags = new Set();
   if (!queue.length) return;
+  renderPalette();
   show('vQuiz'); ask();
 }
 function ask() {
@@ -197,6 +216,7 @@ function ask() {
   $('btnSubmit').hidden = false; $('btnSkip').hidden = false; $('btnNext').hidden = true; $('btnOrig').hidden = true;
   $('btnSubmit').disabled = cur.type === 'pin';
   $('fb').innerHTML = '';
+  syncChrome();
   startTimer();
 }
 function startTimer() {
@@ -264,6 +284,7 @@ function finish(ok, extra, timeout) {
   $('btnSubmit').hidden = true; $('btnSkip').hidden = true; $('btnNext').hidden = false; $('btnOrig').hidden = !im.orig;
   $('btnOrig').textContent = 'Show labeled original';
   $('btnNext').focus();
+  syncChrome();
 }
 function next() {
   if (!answered) return;
@@ -276,6 +297,9 @@ function end() {
   $('final').innerHTML = `${score} / ${n}<small>${pct}% correct</small>`;
   const miss = log.filter((l) => !l.ok); const box = $('missed'); box.innerHTML = '';
   $('missedWrap').hidden = !miss.length; $('btnRetry').hidden = !miss.length;
+  const fl = [...flags].sort((a, b) => a - b).map((i) => log[i]).filter(Boolean); $('flagWrap').hidden = !fl.length; $('flagged').innerHTML = '';
+  fl.forEach((l) => { const s = BANK.structs[l.st.s]; const d = document.createElement('div'); d.className = 'mcard';
+    d.innerHTML = `<img src="img/${l.st.img}.jpg" alt="" loading="lazy"><div><b>${esc(s.name)}</b><i>${l.ok ? 'Correct' : 'Missed'} &middot; ${l.type === 'pin' ? 'Pin it' : l.type === 'rel' ? esc(l.rel.q) : 'Name it'}</i></div>`; $('flagged').append(d); });
   miss.forEach((l) => {
     const s = BANK.structs[l.st.s];
     const d = document.createElement('div'); d.className = 'mcard';
@@ -293,6 +317,8 @@ $('ansForm').onsubmit = (e) => { e.preventDefault(); if (answered) next(); else 
 $('btnSubmit').onclick = () => submit();
 $('btnSkip').onclick = () => { if (!answered) finish(false, '', false); };
 $('btnNext').onclick = next;
+$('exFlag').onclick = () => { if (flags.has(qi)) flags.delete(qi); else flags.add(qi); syncChrome(); };
+$('examfoot-next').onclick = () => { if (answered) next(); else if (cur.type !== 'pin' || pin) submit(); };
 $('btnQuit').onclick = () => { if (log.length) end(); else { clearInterval(tid); show('vSetup'); } };
 $('btnAgain').onclick = () => { show('vSetup'); renderSetup(); };
 $('btnRetry').onclick = () => { const miss = log.filter((l) => !l.ok).map((l) => Object.assign({}, l.st, { qtype: l.type, qrel: l.relIdx >= 0 ? l.relIdx : null })); start(miss); };
@@ -314,9 +340,10 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json?v=3').then((r) => r.json()), fetch('data/hy.json?v=3').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
+Promise.all([fetch('data/bank.json?v=4').then((r) => r.json()), fetch('data/hy.json?v=4').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
   BANK = b; HY = hy || []; BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
   renderSetup();
+  if (window.ATSkin) ATSkin.renderPicker($('skin-picker'));
 }).catch(() => { $('pool').textContent = 'Could not load the question bank.'; });
