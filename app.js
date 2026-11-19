@@ -49,7 +49,7 @@ function typedOk(typed, names) {
 }
 
 // ---------- state ----------
-let BANK = null, HY = [], BYID = new Map(), CTX = {};
+let BANK = null, HY = [], BYID = new Map(), CTX = {}, POLY = {}, IMGST = new Map();
 const cfg = Object.assign({ mode: 'hy', regions: [], type: 'mixed', rel: true, unv: true, count: 0, timer: 0 }, LS.get('mskp_cfg', {}));
 // v3: High Yield (all 100) became the default; move earlier saved settings over once
 if (!(cfg.v >= 3)) { cfg.mode = 'hy'; cfg.count = 0; cfg.v = 3; }
@@ -153,9 +153,37 @@ function radiusFor(st, im) {
   const f = (k === 'muscle' || k === 'bone') ? 0.085 : (k === 'space' || k === 'joint') ? 0.07 : 0.05;
   return Math.max(26, im.w * f);
 }
+// outline of the whole structure (tendon, belly, vessel) where one was drawn
+function inPoly(pt, poly) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+function polyDist(pt, poly) {
+  let m = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, ay] = poly[j], [bx, by] = poly[i], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1;
+    const u = Math.max(0, Math.min(1, ((pt[0] - ax) * dx + (pt[1] - ay) * dy) / L));
+    m = Math.min(m, Math.hypot(pt[0] - ax - u * dx, pt[1] - ay - u * dy));
+  }
+  return inPoly(pt, poly) ? 0 : m;
+}
 function pinGrade(st, im, p) {
   const d = (t) => Math.hypot(t[0] - p[0], t[1] - p[1]);
   const dT = Math.min(...st.tips.map(d));
+  const P = POLY[st.id];
+  if (P) {
+    const ok = dT <= im.w * 0.025 || polyDist(p, P) <= im.w * 0.012;
+    let near = null;
+    if (!ok) {
+      const o = (IMGST.get(st.img) || []).find((x) => x.s !== st.s && POLY[x.id] && inPoly(p, POLY[x.id]));
+      if (o) near = BANK.structs[o.s].name;
+    }
+    return { ok, near };
+  }
   let dO = Infinity, oName = null;
   (im.marks || []).forEach((m) => { if (m.s === st.s) return; const dd = d([m.x, m.y]); if (dd < dO) { dO = dd; oName = m.s ? BANK.structs[m.s].name : m.t; } });
   const R = radiusFor(st, im);
@@ -266,8 +294,9 @@ function finish(ok, extra, timeout) {
   log.push({ st, type: cur.type, ok, rel: cur.rel, relIdx: BANK.structs[st.s].rel ? BANK.structs[st.s].rel.indexOf(cur.rel) : null });
   $('qs').textContent = score;
   if (cur.type === 'pin') {
-    const R = radiusFor(st, im);
-    st.tips.forEach((t) => svg.append(el('circle', { cx: t[0], cy: t[1], r: R, fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6' })));
+    const R = radiusFor(st, im), P = POLY[st.id];
+    if (P) svg.append(el('polygon', { points: P.map((q) => q.join(',')).join(' '), fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6', 'stroke-linejoin': 'round' }));
+    else st.tips.forEach((t) => svg.append(el('circle', { cx: t[0], cy: t[1], r: R, fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6' })));
     st.tips.forEach((t) => svg.append(el('circle', { cx: t[0], cy: t[1], r: Math.max(4, im.w / 160), fill: '#22c55e' })));
     if (pin) drawPin(pin, ok ? '#22c55e' : '#ef4444');
   }
@@ -281,12 +310,12 @@ function finish(ok, extra, timeout) {
     head = ok ? 'Correct' : (timeout ? "Time's up" : 'Not quite');
     body = `<div>${cur.type === 'pin' ? 'Target' : 'Answer'}: <b>${esc(s.name)}</b></div>` +
       (s.alts && s.alts.length ? `<div class="alt">Also accepted: ${s.alts.map(esc).join('; ')}</div>` : '') +
-      (extra ? `<div class="alt">${extra}</div>` : '') + (cur.type === 'pin' ? '<div class="alt">The dashed circle shows the accepted area.</div>' : '') +
+      (extra ? `<div class="alt">${extra}</div>` : '') + (cur.type === 'pin' ? `<div class="alt">The dashed ${POLY[st.id] ? 'outline' : 'circle'} shows the accepted area.</div>` : '') +
       (s.fact ? `<div class="ex">${esc(s.fact)}</div>` : '');
   }
   $('fb').innerHTML = `<div class="fb ${ok ? 'ok' : 'bad'}"><b class="v">${head}</b>${body}</div>`;
   $('btnSubmit').hidden = true; $('btnSkip').hidden = true; $('btnNext').hidden = false; $('btnOrig').hidden = !im.orig;
-  $('btnOrig').textContent = 'Show labeled original';
+  if (im.orig) setOrig(true);
   $('btnNext').focus();
   syncChrome();
 }
@@ -326,12 +355,13 @@ $('examfoot-next').onclick = () => { if (answered) next(); else if (cur.type !==
 $('btnQuit').onclick = () => { if (log.length) end(); else { clearInterval(tid); show('vSetup'); } };
 $('btnAgain').onclick = () => { show('vSetup'); renderSetup(); };
 $('btnRetry').onclick = () => { const miss = log.filter((l) => !l.ok).map((l) => Object.assign({}, l.st, { qtype: l.type, qrel: l.relIdx >= 0 ? l.relIdx : null })); start(miss); };
-$('btnOrig').onclick = () => {
-  const im = BANK.images[cur.st.img]; showOrig = !showOrig;
-  $('photo').src = 'img/' + cur.st.img + (showOrig ? '.orig.jpg' : '.jpg');
-  $('ov').style.visibility = showOrig ? 'hidden' : '';
-  $('btnOrig').textContent = showOrig ? 'Hide labels' : 'Show labeled original';
-};
+// The labeled original is the same size as the cleaned photo, so the arrow, pin and accepted area stay on top of it.
+function setOrig(on) {
+  showOrig = on;
+  $('photo').src = 'img/' + cur.st.img + (on ? '.orig.jpg' : '.jpg');
+  $('btnOrig').textContent = on ? 'Hide labels' : 'Show labeled original';
+}
+$('btnOrig').onclick = () => setOrig(!showOrig);
 $('fig').addEventListener('click', (ev) => {
   if (!cur || cur.type !== 'pin' || answered) return;
   const p = imgPoint(ev); if (!p) return; pin = p; drawPin(p, '#38bdf8'); $('btnSubmit').disabled = false;
@@ -344,8 +374,9 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx]) => {
-  BANK = b; HY = hy || []; CTX = ctx || {}; BYID = new Map(b.stations.map((s) => [s.id, s]));
+Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({})), fetch('data/poly.json?v=7').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx, poly]) => {
+  BANK = b; HY = hy || []; CTX = ctx || {}; POLY = poly || {};
+  b.stations.forEach((s) => { if (!IMGST.has(s.img)) IMGST.set(s.img, []); IMGST.get(s.img).push(s); }); BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
   renderSetup();
