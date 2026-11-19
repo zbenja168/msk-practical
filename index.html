@@ -21,9 +21,11 @@
     <p>Practice-practical stations on real cadaver and bone photos. Name the structure at the arrow, answer what it drains into, branches from, or is innervated by, or drop a pin on a named structure. The photos come from Wikimedia Commons, with their teaching labels removed.</p>
   </header>
   <div class="setup">
+    <div class="group"><h2>Set</h2><div class="chips" id="modes"></div>
+      <p class="hy-note" id="hyNote" hidden>High Yield is a fixed set of the 100 most commonly tagged structures, each on its clearest photo, with a set mix of Name it, Second order and Pin it questions. Choose All stations to run the full final set.</p></div>
     <div class="group"><h2>Structure lists</h2><div class="chips" id="regions"></div></div>
-    <div class="group"><h2>Question type</h2><div class="chips" id="types"></div></div>
-    <div class="group"><h2>Options</h2><div class="toggles">
+    <div class="group" id="grpTypes"><h2>Question type</h2><div class="chips" id="types"></div></div>
+    <div class="group" id="grpOpts"><h2>Options</h2><div class="toggles">
       <label class="tg"><input type="checkbox" id="optRel" checked><span>Second-order questions<small>"This vessel drains into…", "What innervates the indicated muscle?", "What does this artery continue as?"</small></span></label>
       <label class="tg"><input type="checkbox" id="optUnv" checked><span>Include unverified stations<small>Shown with an <b style="color:var(--warn)">unverified</b> tag. On these, the label or arrow position was hard to read with confidence.</small></span></label>
     </div></div>

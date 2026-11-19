@@ -49,8 +49,8 @@ function typedOk(typed, names) {
 }
 
 // ---------- state ----------
-let BANK = null;
-const cfg = Object.assign({ regions: [], type: 'mixed', rel: true, unv: true, count: 25, timer: 0 }, LS.get('mskp_cfg', {}));
+let BANK = null, HY = [], BYID = new Map();
+const cfg = Object.assign({ mode: 'all', regions: [], type: 'mixed', rel: true, unv: true, count: 25, timer: 0 }, LS.get('mskp_cfg', {}));
 let queue = [], qi = 0, score = 0, log = [], cur = null, answered = false, pin = null, tleft = 0, tid = null, showOrig = false;
 
 const TYPES = [['mixed', 'Mixed'], ['name', 'Name it (arrow)'], ['pin', 'Pin it (drop a marker)']];
@@ -64,14 +64,21 @@ function chip(label, on, fn, sub) {
 }
 function stationsFor(c) {
   const R = new Set(c.regions.length ? c.regions : BANK.regions.map((r) => r.id));
-  return BANK.stations.filter((s) => (c.unv || s.sure) && BANK.structs[s.s].regions.some((r) => R.has(r)));
+  const inR = (s) => BANK.structs[s.s].regions.some((r) => R.has(r));
+  if (c.mode === 'hy') return HY.map((h) => { const s = BYID.get(h.id); return s && Object.assign({}, s, { qtype: h.type, qrel: h.rel }); }).filter((s) => s && inR(s));
+  return BANK.stations.filter((s) => (c.unv || s.sure) && inR(s));
 }
 function renderSetup() {
+  const md = $('modes'); md.innerHTML = '';
+  const hy = cfg.mode === 'hy';
+  md.append(chip('Full bank', !hy, () => { cfg.mode = 'all'; saveCfg(); renderSetup(); }, BANK.stations.length));
+  if (HY.length) md.append(chip('High Yield', hy, () => { cfg.mode = 'hy'; saveCfg(); renderSetup(); }, HY.length));
+  $('hyNote').hidden = !hy; $('grpTypes').hidden = hy; $('grpOpts').hidden = hy;
   const rg = $('regions'); rg.innerHTML = '';
   const all = cfg.regions.length === 0;
-  rg.append(chip('All', all, () => { cfg.regions = []; saveCfg(); renderSetup(); }, BANK.stations.length));
+  rg.append(chip('All', all, () => { cfg.regions = []; saveCfg(); renderSetup(); }, stationsFor(Object.assign({}, cfg, { regions: [] })).length));
   BANK.regions.forEach((r) => {
-    const n = BANK.stations.filter((s) => BANK.structs[s.s].regions.includes(r.id)).length;
+    const n = stationsFor(Object.assign({}, cfg, { regions: [r.id] })).length;
     rg.append(chip(r.title, cfg.regions.includes(r.id), () => {
       const i = cfg.regions.indexOf(r.id); if (i >= 0) cfg.regions.splice(i, 1); else cfg.regions.push(r.id);
       saveCfg(); renderSetup();
@@ -85,7 +92,7 @@ function renderSetup() {
   TIMERS.forEach((n) => tm.append(chip(n ? n + ' s' : 'Off', cfg.timer === n, () => { cfg.timer = n; saveCfg(); renderSetup(); })));
   $('optRel').checked = cfg.rel; $('optUnv').checked = cfg.unv;
   const st = stationsFor(cfg), ns = new Set(st.map((s) => s.s)).size;
-  $('pool').textContent = `${st.length} stations covering ${ns} structures on ${new Set(st.map((s) => s.img)).size} photos`;
+  $('pool').textContent = `${hy ? 'High Yield: ' : ''}${st.length} stations covering ${ns} structures on ${new Set(st.map((s) => s.img)).size} photos`;
   $('btnStart').disabled = !st.length;
 }
 function saveCfg() { LS.set('mskp_cfg', cfg); }
@@ -113,7 +120,7 @@ function buildQueue(onlyStations) {
   }
   // avoid the same photo back to back
   for (let i = 1; i < out.length; i++) if (out[i].img === out[i - 1].img) { const j = out.findIndex((x, k) => k > i && x.img !== out[i - 1].img); if (j > 0) [out[i], out[j]] = [out[j], out[i]]; }
-  return out.map((x) => ({ st: x, type: x.qtype || pickType(x), rel: null }));
+  return out.map((x) => ({ st: x, type: x.qtype || pickType(x), relIdx: x.qrel == null ? null : x.qrel, rel: null }));
 }
 
 // ---------- drawing ----------
@@ -164,7 +171,7 @@ function start(only) {
 function ask() {
   cur = queue[qi]; answered = false; pin = null; showOrig = false;
   const st = cur.st, im = BANK.images[st.img], s = BANK.structs[st.s];
-  if (cur.type === 'rel') cur.rel = s.rel[Math.floor(Math.random() * s.rel.length)];
+  if (cur.type === 'rel') cur.rel = s.rel[cur.relIdx != null && s.rel[cur.relIdx] ? cur.relIdx : Math.floor(Math.random() * s.rel.length)];
   $('qn').textContent = qi + 1; $('qt').textContent = queue.length; $('qs').textContent = score;
   $('progBar').style.width = (100 * qi / queue.length) + '%';
   const photo = $('photo'); photo.src = 'img/' + st.img + '.jpg';
@@ -230,7 +237,7 @@ function finish(ok, extra, timeout) {
   answered = true; clearInterval(tid);
   const st = cur.st, s = BANK.structs[st.s], im = BANK.images[st.img], svg = $('ov');
   if (ok) score++;
-  log.push({ st, type: cur.type, ok, rel: cur.rel });
+  log.push({ st, type: cur.type, ok, rel: cur.rel, relIdx: BANK.structs[st.s].rel ? BANK.structs[st.s].rel.indexOf(cur.rel) : null });
   $('qs').textContent = score;
   if (cur.type === 'pin') {
     const R = radiusFor(st, im);
@@ -286,7 +293,7 @@ $('btnSkip').onclick = () => { if (!answered) finish(false, '', false); };
 $('btnNext').onclick = next;
 $('btnQuit').onclick = () => { if (log.length) end(); else { clearInterval(tid); show('vSetup'); } };
 $('btnAgain').onclick = () => { show('vSetup'); renderSetup(); };
-$('btnRetry').onclick = () => { const miss = log.filter((l) => !l.ok).map((l) => Object.assign({}, l.st, { qtype: l.type })); start(miss); };
+$('btnRetry').onclick = () => { const miss = log.filter((l) => !l.ok).map((l) => Object.assign({}, l.st, { qtype: l.type, qrel: l.relIdx >= 0 ? l.relIdx : null })); start(miss); };
 $('btnOrig').onclick = () => {
   const im = BANK.images[cur.st.img]; showOrig = !showOrig;
   $('photo').src = 'img/' + cur.st.img + (showOrig ? '.orig.jpg' : '.jpg');
@@ -305,8 +312,9 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-fetch('data/bank.json').then((r) => r.json()).then((b) => {
-  BANK = b;
+Promise.all([fetch('data/bank.json').then((r) => r.json()), fetch('data/hy.json').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
+  BANK = b; HY = hy || []; BYID = new Map(b.stations.map((s) => [s.id, s]));
+  if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
   renderSetup();
 }).catch(() => { $('pool').textContent = 'Could not load the question bank.'; });
