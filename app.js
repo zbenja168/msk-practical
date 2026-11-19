@@ -50,7 +50,9 @@ function typedOk(typed, names) {
 
 // ---------- state ----------
 let BANK = null, HY = [], BYID = new Map();
-const cfg = Object.assign({ mode: 'all', regions: [], type: 'mixed', rel: true, unv: true, count: 25, timer: 0 }, LS.get('mskp_cfg', {}));
+const cfg = Object.assign({ mode: 'hy', regions: [], type: 'mixed', rel: true, unv: true, count: 0, timer: 0 }, LS.get('mskp_cfg', {}));
+// v3: High Yield (all 100) became the default; move earlier saved settings over once
+if (!(cfg.v >= 3)) { cfg.mode = 'hy'; cfg.count = 0; cfg.v = 3; }
 let queue = [], qi = 0, score = 0, log = [], cur = null, answered = false, pin = null, tleft = 0, tid = null, showOrig = false;
 
 const TYPES = [['mixed', 'Mixed'], ['name', 'Name it (arrow)'], ['pin', 'Pin it (drop a marker)']];
@@ -312,7 +314,7 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json?v=2').then((r) => r.json()), fetch('data/hy.json?v=2').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
+Promise.all([fetch('data/bank.json?v=3').then((r) => r.json()), fetch('data/hy.json?v=3').then((r) => (r.ok ? r.json() : [])).catch(() => [])]).then(([b, hy]) => {
   BANK = b; HY = hy || []; BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
