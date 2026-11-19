@@ -194,13 +194,11 @@ function pinGrade(st, im, p) {
   const dT = Math.min(...st.tips.map(d));
   const P = POLY[st.id];
   if (P) {
-    const ok = dT <= im.w * 0.025 || polyDist(p, P) <= im.w * 0.012;
-    let near = null;
-    if (!ok) {
-      const o = (IMGST.get(st.img) || []).find((x) => x.s !== st.s && POLY[x.id] && inRings(p, POLY[x.id]));
-      if (o) near = BANK.structs[o.s].name;
-    }
-    return { ok, near };
+    // on another labeled structure's outline?
+    const o = (IMGST.get(st.img) || []).find((x) => x.s !== st.s && POLY[x.id] && inRings(p, POLY[x.id]));
+    // anywhere on the outline counts; the old circle still counts too unless the pin sits on a different structure
+    const ok = dT <= im.w * 0.025 || polyDist(p, P) <= im.w * 0.012 || (!o && dT <= radiusFor(st, im));
+    return { ok, near: !ok && o ? BANK.structs[o.s].name : null };
   }
   let dO = Infinity, oName = null;
   (im.marks || []).forEach((m) => { if (m.s === st.s) return; const dd = d([m.x, m.y]); if (dd < dO) { dO = dd; oName = m.s ? BANK.structs[m.s].name : m.t; } });
@@ -392,7 +390,7 @@ document.addEventListener('keydown', (e) => {
   if (answered) next(); else if (cur && cur.type === 'pin' && pin) submit();
 });
 
-Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({})), fetch('data/poly.json?v=7').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx, poly]) => {
+Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({})), fetch('data/poly.json?v=10').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx, poly]) => {
   BANK = b; HY = hy || []; CTX = ctx || {}; POLY = {};
   // an outline is one ring [[x,y],...] or, for a structure seen in separate parts, a list of rings
   Object.entries(poly || {}).forEach(([k, v]) => { if (v && v.length) POLY[k] = typeof v[0][0] === 'number' ? [v] : v; });
