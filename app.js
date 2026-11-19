@@ -50,6 +50,8 @@ function typedOk(typed, names) {
 
 // ---------- state ----------
 let BANK = null, HY = [], BYID = new Map(), CTX = {}, POLY = {}, IMGST = new Map();
+// The full bank needs an Active Transport sign-in; High Yield is open to everyone.
+let FULL = 'checking'; // 'ok' | 'locked' | 'error' | 'checking'
 const cfg = Object.assign({ mode: 'hy', regions: [], type: 'mixed', rel: true, unv: true, count: 0, timer: 0 }, LS.get('mskp_cfg', {}));
 // v3: High Yield (all 100) became the default; move earlier saved settings over once
 if (!(cfg.v >= 3)) { cfg.mode = 'hy'; cfg.count = 0; cfg.v = 3; }
@@ -73,8 +75,13 @@ function stationsFor(c) {
 function renderSetup() {
   const md = $('modes'); md.innerHTML = '';
   const hy = cfg.mode === 'hy';
-  md.append(chip('Full bank', !hy, () => { cfg.mode = 'all'; saveCfg(); renderSetup(); }, BANK.stations.length));
   if (HY.length) md.append(chip('High Yield', hy, () => { cfg.mode = 'hy'; saveCfg(); renderSetup(); }, HY.length));
+  const fb = chip((FULL === 'ok' ? '' : '&#128274; ') + 'Full bank', !hy, () => { if (FULL !== 'ok') return; cfg.mode = 'all'; saveCfg(); renderSetup(); }, BANK.stations.length);
+  fb.disabled = FULL !== 'ok'; md.append(fb);
+  const ln = $('fullNote');
+  ln.hidden = FULL === 'ok';
+  ln.innerHTML = FULL === 'locked' ? 'The full bank of ' + BANK.stations.length + ' stations unlocks when you open MSK Practical from your <a href="https://activetransport.app" target="_blank" rel="noopener">Active Transport</a> home page while signed in (any free account).'
+    : FULL === 'error' ? "Couldn't check your Active Transport sign-in just now. Reload to try again." : 'Checking your Active Transport sign-in&hellip;';
   $('hyNote').hidden = !hy; $('grpTypes').hidden = hy; $('grpOpts').hidden = hy;
   const rg = $('regions'); rg.innerHTML = '';
   const all = cfg.regions.length === 0;
@@ -171,7 +178,9 @@ function inPoly(pt, poly) {
   }
   return c;
 }
-function polyDist(pt, poly) {
+function polyDist(pt, rings) { return Math.min(...rings.map((r) => ringDist(pt, r))); }
+function inRings(pt, rings) { return rings.some((r) => inPoly(pt, r)); }
+function ringDist(pt, poly) {
   let m = Infinity;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [ax, ay] = poly[j], [bx, by] = poly[i], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1;
@@ -188,7 +197,7 @@ function pinGrade(st, im, p) {
     const ok = dT <= im.w * 0.025 || polyDist(p, P) <= im.w * 0.012;
     let near = null;
     if (!ok) {
-      const o = (IMGST.get(st.img) || []).find((x) => x.s !== st.s && POLY[x.id] && inPoly(p, POLY[x.id]));
+      const o = (IMGST.get(st.img) || []).find((x) => x.s !== st.s && POLY[x.id] && inRings(p, POLY[x.id]));
       if (o) near = BANK.structs[o.s].name;
     }
     return { ok, near };
@@ -304,7 +313,7 @@ function finish(ok, extra, timeout) {
   $('qs').textContent = score;
   if (cur.type === 'pin') {
     const R = radiusFor(st, im), P = POLY[st.id];
-    if (P) svg.append(el('polygon', { points: P.map((q) => q.join(',')).join(' '), fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6', 'stroke-linejoin': 'round' }));
+    if (P) P.forEach((ring) => svg.append(el('polygon', { points: ring.map((q) => q.join(',')).join(' '), fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6', 'stroke-linejoin': 'round' })));
     else st.tips.forEach((t) => svg.append(el('circle', { cx: t[0], cy: t[1], r: R, fill: 'rgba(34,197,94,.18)', stroke: '#22c55e', 'stroke-width': Math.max(2, im.w / 300), 'stroke-dasharray': '8 6' })));
     st.tips.forEach((t) => svg.append(el('circle', { cx: t[0], cy: t[1], r: Math.max(4, im.w / 160), fill: '#22c55e' })));
     if (pin) drawPin(pin, ok ? '#22c55e' : '#ef4444');
@@ -384,10 +393,16 @@ document.addEventListener('keydown', (e) => {
 });
 
 Promise.all([fetch('data/bank.json?v=5').then((r) => r.json()), fetch('data/hy.json?v=5').then((r) => (r.ok ? r.json() : [])).catch(() => []), fetch('data/ctx.json?v=5').then((r) => (r.ok ? r.json() : {})).catch(() => ({})), fetch('data/poly.json?v=7').then((r) => (r.ok ? r.json() : {})).catch(() => ({}))]).then(([b, hy, ctx, poly]) => {
-  BANK = b; HY = hy || []; CTX = ctx || {}; POLY = poly || {};
+  BANK = b; HY = hy || []; CTX = ctx || {}; POLY = {};
+  // an outline is one ring [[x,y],...] or, for a structure seen in separate parts, a list of rings
+  Object.entries(poly || {}).forEach(([k, v]) => { if (v && v.length) POLY[k] = typeof v[0][0] === 'number' ? [v] : v; });
   b.stations.forEach((s) => { if (!IMGST.has(s.img)) IMGST.set(s.img, []); IMGST.get(s.img).push(s); }); BYID = new Map(b.stations.map((s) => [s.id, s]));
   if (cfg.mode === 'hy' && !HY.length) cfg.mode = 'all';
   cfg.regions = cfg.regions.filter((r) => BANK.regions.some((x) => x.id === r));
+  if (cfg.mode === 'all') cfg.mode = 'hy'; // until the sign-in check says otherwise
   renderSetup();
-  if (window.ATSkin) ATSkin.renderPicker($('skin-picker'));
+  if (window.ATSkin) {
+    ATSkin.renderPicker($('skin-picker'));
+    ATSkin.access((a) => { FULL = a; if (a === 'ok') cfg.mode = (LS.get('mskp_cfg', {}).mode) || cfg.mode; renderSetup(); });
+  } else { FULL = 'error'; renderSetup(); }
 }).catch(() => { $('pool').textContent = 'Could not load the question bank.'; });

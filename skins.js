@@ -77,21 +77,11 @@
   }
 
   /** Re-apply on load, but never leave a skin on for someone who signed out. */
+  /** Re-apply the saved skin on load. The skins are open to everyone here. */
   function restore(done) {
     var want = saved();
-    if (want === "off") {
-      if (done) done("off");
-      return;
-    }
-    loadAccess(function (a) {
-      if (a !== "ok") {
-        apply("off", true); // signed out: show plain, but keep the saved choice for next time
-        if (done) done("off");
-        return;
-      }
-      apply(want);
-      if (done) done(want);
-    });
+    apply(want, true);
+    if (done) done(want);
   }
 
   var OPTIONS = [
@@ -100,7 +90,7 @@
     { id: "examplify-dark", label: "Examplify Dark" },
   ];
 
-  /** Skin picker; locked until the reader is signed in. */
+  /** Skin picker (open to everyone). */
   function renderPicker(host) {
     if (!host) return;
     host.innerHTML = "";
@@ -138,20 +128,10 @@
 
     restore(function (current) {
       buttons.forEach(function (b, i) {
+        b.disabled = false;
         b.classList.toggle("active", OPTIONS[i].id === current);
       });
-      loadAccess(function (a) {
-        if (a === "ok") {
-          buttons.forEach(function (b) { b.disabled = false; });
-          note.textContent = "Practise in a layout built to match the real exam software.";
-        } else if (a === "locked") {
-          note.innerHTML =
-            'Sign in to <a href="' + API + '" target="_blank" rel="noopener">Active Transport</a> ' +
-            "and open MSK Practical from your home page to use the exam skins.";
-        } else {
-          note.textContent = "Couldn't check your account just now — try again in a moment.";
-        }
-      });
+      note.textContent = "Practise in a layout built to match the real exam software.";
     });
   }
 
@@ -160,6 +140,8 @@
     apply: apply,
     restore: restore,
     renderPicker: renderPicker,
+    /** Active Transport sign-in check: "ok" | "locked" | "error" (unlocks the full bank). */
+    access: loadAccess,
     current: function () {
       return document.documentElement.getAttribute("data-skin") || "off";
     },
