@@ -133,10 +133,19 @@ function arrowFor(st, im) {
   if (st.tail) { dx = st.tail[0] - tx; dy = st.tail[1] - ty; }
   else { dx = tx < im.w / 2 ? -1 : 1; dy = -0.35; }
   const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
-  let len = Math.max(70, im.w * 0.13);
-  // keep the tail inside the picture
-  for (let k = 0; k < 20; k++) { const x = tx + dx * len, y = ty + dy * len; if (x > 8 && y > 8 && x < im.w - 8 && y < im.h - 8) break; len *= 0.85; }
-  return { x1: tx + dx * len, y1: ty + dy * len, x2: tx, y2: ty };
+  const want = Math.max(70, im.w * 0.13);
+  // longest tail that stays inside the picture along direction (ux, uy)
+  const fit = (ux, uy) => { let len = want; for (let k = 0; k < 20; k++) { const x = tx + ux * len, y = ty + uy * len; if (x > 8 && y > 8 && x < im.w - 8 && y < im.h - 8) return len; len *= 0.85; } return 0; };
+  // keep the anatomist's direction when it fits; otherwise swing it until a full-length arrow fits
+  let best = { len: fit(dx, dy), ux: dx, uy: dy };
+  if (best.len < want * 0.6) {
+    for (const deg of [30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
+      const r = deg * Math.PI / 180, ux = dx * Math.cos(r) - dy * Math.sin(r), uy = dx * Math.sin(r) + dy * Math.cos(r), len = fit(ux, uy);
+      if (len > best.len) best = { len, ux, uy };
+      if (len >= want * 0.6) break;
+    }
+  }
+  return { x1: tx + best.ux * best.len, y1: ty + best.uy * best.len, x2: tx, y2: ty };
 }
 function drawArrow(svg, a, im, color) {
   const sw = Math.max(4, im.w / 170), hl = sw * 4.2, hw = sw * 2.6;
@@ -224,7 +233,7 @@ function ask() {
   $('qn').textContent = qi + 1; $('qt').textContent = queue.length; $('qs').textContent = score;
   $('progBar').style.width = (100 * qi / queue.length) + '%';
   const photo = $('photo'); photo.src = 'img/' + st.img + '.jpg';
-  const svg = $('ov'); svg.setAttribute('viewBox', `0 0 ${im.w} ${im.h}`); svg.innerHTML = '';
+  const svg = $('ov'); svg.setAttribute('viewBox', `0 0 ${im.w} ${im.h}`); svg.innerHTML = ''; svg.style.visibility = '';
   $('fig').classList.toggle('pinning', cur.type === 'pin');
   const c = im.credit;
   $('cap').innerHTML = `Photo: ${esc(c.author)} &middot; <a href="${c.licenseUrl || '#'}" target="_blank" rel="noopener">${esc(c.license)}</a> &middot; <a href="${c.page}" target="_blank" rel="noopener">Wikimedia Commons</a> &middot; labels removed`;
