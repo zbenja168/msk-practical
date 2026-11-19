@@ -11,7 +11,8 @@
   "use strict";
 
   var API = "https://activetransport.app";
-  var STORE = "at_qbank_skin";
+  // Its own key: here Examplify is the default, unlike the QBanks.
+  var STORE = "mskp_skin";
   var access = null; // 'ok' | 'locked' | 'error', cached for the page view
 
   function token() {
@@ -46,16 +47,17 @@
   function saved() {
     try {
       var s = localStorage.getItem(STORE);
+      if (s == null) return "examplify";
       return s === "examplify" || s === "examplify-dark" ? s : "off";
     } catch (e) {
-      return "off";
+      return "examplify";
     }
   }
 
   // "examplify-dark" is Examplify's dark theme, not a different interface: it
   // sets data-skin="examplify" plus data-skin-mode="dark", so every layout rule
   // keeps treating it as Examplify and only the palette changes.
-  function apply(skin) {
+  function apply(skin, noSave) {
     var el = document.documentElement;
     try {
       if (skin === "off") {
@@ -68,7 +70,7 @@
         el.setAttribute("data-skin", skin);
         el.removeAttribute("data-skin-mode");
       }
-      localStorage.setItem(STORE, skin);
+      if (!noSave) localStorage.setItem(STORE, skin);
     } catch (e) {
       /* private mode — the skin still applies for this page view */
     }
@@ -83,7 +85,7 @@
     }
     loadAccess(function (a) {
       if (a !== "ok") {
-        apply("off");
+        apply("off", true); // signed out: show plain, but keep the saved choice for next time
         if (done) done("off");
         return;
       }
